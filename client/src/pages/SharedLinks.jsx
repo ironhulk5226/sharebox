@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { XCircle, Share2 } from 'lucide-react';
+import { ExternalLink, XCircle, Share2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext.jsx';
 import { collection, getDocs, orderBy, query, updateDoc, doc } from 'firebase/firestore';
@@ -86,6 +86,16 @@ export default function SharedLinks() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
+                        <a
+                          href={`/share/${link.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="View shared link"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-colors"
+                        >
+                          <ExternalLink size={16} />
+                          <span>View</span>
+                        </a>
                         {link.status === 'active' && (
                           <button
                             onClick={() => handleRevoke(link)}
