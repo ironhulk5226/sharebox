@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── User profiles ────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // ── File metadata (Cloudinary-backed) ──────────────────
+      match /files/{fileId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+          && request.auth.uid == uid
+          // ownerUid in the document must match the authenticated user
+          && request.resource.data.ownerUid == request.auth.uid
+          // required fields must all be present
+          && request.resource.data.keys().hasAll([
+               'ownerUid', 'fileName', 'size', 'contentType',
+               'cloudinaryPublicId', 'resourceType', 'cloudinaryUrl',
+               'createdAt', 'updatedAt'
+             ])
+          // basic type checks
+          && request.resource.data.fileName is string
+          && request.resource.data.fileName.size() > 0
+          && request.resource.data.size is int
+          && request.resource.data.size > 0
+          && request.resource.data.cloudinaryPublicId is string
+          && request.resource.data.cloudinaryUrl is string
+          && request.resource.data.resourceType in ['image', 'raw'];
+
+        // Only allow deleting your own records; no partial updates
+        allow delete: if request.auth != null && request.auth.uid == uid;
+
+        // Updates are not used in normal flow; block them to prevent
+        // accidental overwrites of cloudinaryPublicId or ownerUid
+        allow update: if false;
+      }
+
+      // ── Private share records ──────────────────────────────
+      match /shares/{shareId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // ── Public share lookup ──────────────────────────────────
+    // share.html reads this collection without authentication.
+    // It contains only: ownerUid, fileId, fileName, expiresAt, revoked, createdAt.
+    // It does NOT contain cloudinaryUrl or cloudinaryPublicId — the download
+    // URL is fetched from the owner's private file record after auth checks pass.
+    match /shares/{shareId} {
+      allow read: if true;
+
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasAll([
+             'ownerUid', 'fileId', 'fileName', 'expiresAt', 'revoked', 'createdAt'
+           ])
+        && request.resource.data.revoked == false;
+
+      // Only the revoked field may be flipped; nothing else changes
+      allow update: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked'])
+        && request.resource.data.revoked == true;
+
+      allow delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+  }
+}
